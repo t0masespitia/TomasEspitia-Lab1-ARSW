@@ -1,4 +1,4 @@
-package edu.eci.arsw.primefinder;
+package primefinder;
 
 public class Main {
 

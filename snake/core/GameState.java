@@ -1,2 +1,2 @@
-package co.eci.snake.core;
+package snake.core;
 public enum GameState { STOPPED, RUNNING, PAUSED }

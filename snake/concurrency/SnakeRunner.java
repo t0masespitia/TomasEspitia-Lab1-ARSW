@@ -1,8 +1,8 @@
-package co.eci.snake.concurrency;
+package snake.concurrency;
 
-import co.eci.snake.core.Board;
-import co.eci.snake.core.Direction;
-import co.eci.snake.core.Snake;
+import snake.core.Board;
+import snake.core.Direction;
+import snake.core.Snake;
 
 import java.util.concurrent.ThreadLocalRandom;
 

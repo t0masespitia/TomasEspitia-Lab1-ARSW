@@ -1,4 +1,4 @@
-package edu.eci.arsw.primefinder;
+package primefinder;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -9,12 +9,15 @@ public class PrimeFinderThread extends Thread{
 	int a,b;
 	
 	private List<Integer> primes;
-	
-	public PrimeFinderThread(int a, int b) {
+
+    private final Control control;
+
+	public PrimeFinderThread(int a, int b ,Control control) {
 		super();
                 this.primes = new LinkedList<>();
 		this.a = a;
 		this.b = b;
+        this.control = control;
 	}
 
         @Override
@@ -24,6 +27,7 @@ public class PrimeFinderThread extends Thread{
                     primes.add(i);
                     System.out.println(i);
                 }
+                control.checkPause();
             }
 	}
 	

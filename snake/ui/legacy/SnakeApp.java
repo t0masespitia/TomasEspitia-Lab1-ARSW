@@ -1,11 +1,11 @@
-package co.eci.snake.ui.legacy;
+package snake.ui.legacy;
 
-import co.eci.snake.concurrency.SnakeRunner;
-import co.eci.snake.core.Board;
-import co.eci.snake.core.Direction;
-import co.eci.snake.core.Position;
-import co.eci.snake.core.Snake;
-import co.eci.snake.core.engine.GameClock;
+import snake.concurrency.SnakeRunner;
+import snake.core.Board;
+import snake.core.Direction;
+import snake.core.Position;
+import snake.core.Snake;
+import snake.core.engine.GameClock;
 
 import javax.swing.*;
 import java.awt.*;

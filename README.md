@@ -1,70 +1,40 @@
-# Snake Race — ARSW Lab #2 (Java 21, Virtual Threads)
-
-**Escuela Colombiana de Ingeniería – Arquitecturas de Software**  
-Laboratorio de programación concurrente: condiciones de carrera, sincronización y colecciones seguras.
-
----
-
-## Requisitos
-
-- **JDK 21** (Temurin recomendado)
-- **Maven 3.9+**
-- SO: Windows, macOS o Linux
-
----
-
-## Cómo ejecutar
-
-```bash
-mvn clean verify
-mvn -q -DskipTests exec:java -Dsnakes=4
-```
-
-- `-Dsnakes=N` → inicia el juego con **N** serpientes (por defecto 2).
-- **Controles**:
-  - **Flechas**: serpiente **0** (Jugador 1).
-  - **WASD**: serpiente **1** (si existe).
-  - **Espacio** o botón **Action**: Pausar / Reanudar.
-
----
-
-## Reglas del juego (resumen)
-
-- **N serpientes** corren de forma autónoma (cada una en su propio hilo).
-- **Ratones**: al comer uno, la serpiente **crece** y aparece un **nuevo obstáculo**.
-- **Obstáculos**: si la cabeza entra en un obstáculo hay **rebote**.
-- **Teletransportadores** (flechas rojas): entrar por uno te **saca por su par**.
-- **Rayos (Turbo)**: al pisarlos, la serpiente obtiene **velocidad aumentada** temporal.
-- Movimiento con **wrap-around** (el tablero “se repite” en los bordes).
-
----
-
-## Arquitectura (carpetas)
-
-```
-co.eci.snake
-├─ app/                 # Bootstrap de la aplicación (Main)
-├─ core/                # Dominio: Board, Snake, Direction, Position
-├─ core/engine/         # GameClock (ticks, Pausa/Reanudar)
-├─ concurrency/         # SnakeRunner (lógica por serpiente con virtual threads)
-└─ ui/legacy/           # UI estilo legado (Swing) con grilla y botón Action
-```
-
----
-
-# Actividades del laboratorio
 
 ## Parte I — (Calentamiento) `wait/notify` en un programa multi-hilo
+## ¿Qué hace el programa?
 
-1. Toma el programa [**PrimeFinder**](https://github.com/ARSW-ECI/wait-notify-excercise).
-2. Modifícalo para que **cada _t_ milisegundos**:
-   - Se **pausen** todos los hilos trabajadores.
-   - Se **muestre** cuántos números primos se han encontrado.
-   - El programa **espere ENTER** para **reanudar**.
-3. La sincronización debe usar **`synchronized`**, **`wait()`**, **`notify()` / `notifyAll()`** sobre el **mismo monitor** (sin _busy-waiting_).
-4. Entrega en el reporte de laboratorio **las observaciones y/o comentarios** explicando tu diseño de sincronización (qué lock, qué condición, cómo evitas _lost wakeups_).
+El programa busca números primos entre 0 y 30.000.000 usando 3 hilos trabajadores que se reparten el rango. Cada 5 segundos todos los hilos se pausan, se imprime cuántos primos lleva cada uno, y el programa espera a que el usuario presione ENTER para continuar.
 
-> Objetivo didáctico: practicar suspensión/continuación **sin** espera activa y consolidar el modelo de monitores en Java.
+---
+
+## ¿Cómo se sincroniza?
+
+El objeto **Control** actúa como monitor compartido. Tiene un flag booleano **paused** que los hilos trabajadores consultan en cada iteración llamando a **checkPause()**.
+Cuando **Control** activa la pausa (**paused = true**), los hilos que llegan a **checkPause()** ejecutan **wait()** y se bloquean ahí, liberando el CPU. No hay espera activa en ningún punto.
+Una vez que el usuario presiona ENTER, **Control** pone **paused = false** y llama **notifyAll()**, lo que despierta a todos los hilos al mismo tiempo para que continúen desde donde se quedaron.
+El **while (paused)** dentro de **checkPause()** (en lugar de un **if**) protege contra *spurious wakeups*, que son casos donde **wait()** puede retornar sin haber recibido un **notify**. Así el hilo vuelve a verificar la condición antes de continuar.
+
+---
+## Clases modificadas
+
+**PrimeFinderThread** – se le agregó una referencia al **Control** y se llama **checkPause()** en cada iteración del loop principal.
+
+**Control** – se agregó el flag **paused**, el loop del temporizador en **run()**, y el método **checkPause()** sincronizado.
+ 
+---
+## Evidencia de ejecución
+### El programa arranca y los hilos empiezan a imprimir primos
+![Pausa.png](Pausa.png)
+### A los 5 segundos aparece la pausa con el conteo por hilo
+![corriendo.png](corriendo.png)
+### Después de presionar ENTER los hilos retoman
+![Pausa2.png](Pausa2.png)
+---
+
+## Observaciones
+
+Algo que noté al correrlo es que el conteo no es exactamente el mismo entre hilos porque cada rango tiene diferente densidad de primos. El hilo 0 cubre los números más pequeños donde hay más primos por unidad de rango, así que siempre va más adelantado que los otros dos.
+
+El **sleep(50)** que tiene **Control** justo después de activar la pausa es para darle margen a los hilos de que lleguen a su **checkPause()** antes de imprimir las estadísticas. Sin ese sleep podría imprimirse el conteo con algún hilo todavía corriendo.
 
 ---
 

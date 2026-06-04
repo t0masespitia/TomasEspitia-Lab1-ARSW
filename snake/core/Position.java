@@ -1,4 +1,4 @@
-package co.eci.snake.core;
+package snake.core;
 
 public record Position(int x, int y) {
   public Position wrap(int width, int height) {

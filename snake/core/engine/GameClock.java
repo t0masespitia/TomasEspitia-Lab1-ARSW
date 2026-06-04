@@ -1,6 +1,6 @@
-package co.eci.snake.core.engine;
+package snake.core.engine;
 
-import co.eci.snake.core.GameState;
+import snake.core.GameState;
 
 import java.util.Objects;
 import java.util.concurrent.Executors;

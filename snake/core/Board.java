@@ -1,4 +1,4 @@
-package co.eci.snake.core;
+package snake.core;
 
 import java.util.HashMap;
 import java.util.HashSet;

@@ -1,6 +1,6 @@
-package co.eci.snake.app;
+package snake.app;
 
-import co.eci.snake.ui.legacy.SnakeApp;
+import snake.ui.legacy.SnakeApp;
 
 public final class Main {
   private Main() {}
