@@ -29,13 +29,21 @@ public final class SnakeApp extends JFrame {
     super("The Snake Race");
     this.board = new Board(35, 28);
 
-    int N = Integer.getInteger("snakes", 2);
+    final int N = 20;
+    final int PRE_KILLED = 5;
+    int cols = board.width() / 4;
     for (int i = 0; i < N; i++) {
-      int x = 2 + (i * 3) % board.width();
-      int y = 2 + (i * 2) % board.height();
+      int x = 2 + (i % cols) * 4;
+      int y = 2 + (i / cols) * 4;
+      if (x >= board.width())  x = x % board.width();
+      if (y >= board.height()) y = y % board.height();
       var dir = Direction.values()[i % Direction.values().length];
-      snakes.add(Snake.of(x, y, dir));
+      var s = Snake.of(x, y, dir);
+      if (i >= N - PRE_KILLED) s.kill();
+      snakes.add(s);
     }
+    System.out.println("Serpientes vivas: " + snakes.stream().filter(Snake::isAlive).count()
+        + " / pre-eliminadas: " + PRE_KILLED);
 
     this.gamePanel = new GamePanel(board, () -> snakes);
     this.actionButton = new JButton("Pause");
@@ -51,7 +59,7 @@ public final class SnakeApp extends JFrame {
     this.clock = new GameClock(60, () -> SwingUtilities.invokeLater(gamePanel::repaint));
 
     var exec = Executors.newVirtualThreadPerTaskExecutor();
-    snakes.forEach(s -> exec.submit(new SnakeRunner(s, board)));
+    snakes.stream().filter(Snake::isAlive).forEach(s -> exec.submit(new SnakeRunner(s, board)));
 
     actionButton.addActionListener((ActionEvent e) -> togglePause());
 
@@ -238,14 +246,23 @@ public final class SnakeApp extends JFrame {
         g2.fillPolygon(xs, ys, xs.length);
       }
 
+      Color[] palette = {
+        new Color(0, 170, 0),   new Color(0, 160, 180), new Color(200, 50, 50),
+        new Color(180, 130, 0), new Color(120, 0, 180), new Color(0, 140, 80),
+        new Color(180, 60, 120),new Color(60, 60, 200), new Color(160, 100, 0),
+        new Color(0, 120, 120), new Color(140, 0, 60),  new Color(80, 160, 0),
+        new Color(200, 80, 0),  new Color(0, 80, 200),  new Color(120, 60, 0),
+        new Color(0, 160, 100), new Color(160, 0, 160), new Color(100, 140, 0),
+        new Color(0, 100, 160), new Color(180, 40, 0)
+      };
       var snakes = snakesSupplier.get();
       int idx = 0;
       for (Snake s : snakes) {
         if (s.isAlive()) {
           var body = s.snapshot().toArray(new Position[0]);
+          Color base = palette[idx % palette.length];
           for (int i = 0; i < body.length; i++) {
             var p = body[i];
-            Color base = (idx == 0) ? new Color(0, 170, 0) : new Color(0, 160, 180);
             int shade = Math.max(0, 40 - i * 4);
             g2.setColor(new Color(
                 Math.min(255, base.getRed() + shade),

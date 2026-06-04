@@ -7,7 +7,7 @@ public final class Snake {
   private final Deque<Position> body = new ArrayDeque<>();
   private volatile Direction direction;
   private int maxLength = 5;
-  private boolean alive = true;
+  private volatile boolean alive = true;
   private long deathTime = Long.MAX_VALUE;
 
   private Snake(Position start, Direction dir) {
