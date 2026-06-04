@@ -2,6 +2,7 @@ package snake.core;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -15,6 +16,9 @@ public final class Board {
   private final Set<Position> obstacles = new HashSet<>();
   private final Set<Position> turbo = new HashSet<>();
   private final Map<Position, Position> teleports = new HashMap<>();
+  private boolean paused = false;
+  private int activeRunners = 0;
+  private int waitingRunners = 0;
 
   public enum MoveResult { MOVED, ATE_MOUSE, HIT_OBSTACLE, ATE_TURBO, TELEPORTED }
 
@@ -36,35 +40,99 @@ public final class Board {
   public synchronized Set<Position> turbo() { return new HashSet<>(turbo); }
   public synchronized Map<Position, Position> teleports() { return new HashMap<>(teleports); }
 
-  public synchronized MoveResult step(Snake snake) {
+  public synchronized void registerRunner() {
+    activeRunners++;
+  }
+
+  public synchronized void unregisterRunner() {
+    activeRunners--;
+    notifyAll();
+  }
+
+  public synchronized void pauseGame() {
+    paused = true;
+  }
+
+  public synchronized void resumeGame() {
+    paused = false;
+    notifyAll();
+  }
+
+  public synchronized void checkPause() {
+    while (paused) {
+      waitingRunners++;
+      try {
+        wait();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      } finally {
+        waitingRunners--;
+      }
+    }
+  }
+
+  public synchronized void waitUntilAllPaused() {
+    while (waitingRunners < activeRunners) {
+      try {
+        wait(10);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+    }
+  }
+
+  public MoveResult step(Snake snake) {
     Objects.requireNonNull(snake, "snake");
-    var head = snake.head();
-    var dir = snake.direction();
+
+    Position head = snake.head();
+    Direction dir = snake.direction();
     Position next = new Position(head.x() + dir.dx, head.y() + dir.dy).wrap(width, height);
 
-    if (obstacles.contains(next)) return MoveResult.HIT_OBSTACLE;
+    boolean ateMouse;
+    boolean ateTurbo;
+    boolean teleported;
+    MoveResult result;
 
-    boolean teleported = false;
-    if (teleports.containsKey(next)) {
-      next = teleports.get(next);
-      teleported = true;
+    synchronized (this) {
+      if (obstacles.contains(next)) return MoveResult.HIT_OBSTACLE;
+
+      teleported = false;
+      if (teleports.containsKey(next)) {
+        next = teleports.get(next);
+        teleported = true;
+      }
+
+      ateMouse = mice.remove(next);
+      ateTurbo = turbo.remove(next);
+
+      if (ateMouse) {
+        mice.add(randomEmpty());
+        obstacles.add(randomEmpty());
+        if (ThreadLocalRandom.current().nextDouble() < 0.2) turbo.add(randomEmpty());
+      }
+
+      if (ateTurbo) result = MoveResult.ATE_TURBO;
+      else if (ateMouse) result = MoveResult.ATE_MOUSE;
+      else if (teleported) result = MoveResult.TELEPORTED;
+      else result = MoveResult.MOVED;
     }
-
-    boolean ateMouse = mice.remove(next);
-    boolean ateTurbo = turbo.remove(next);
 
     snake.advance(next, ateMouse);
+    return result;
+  }
 
-    if (ateMouse) {
-      mice.add(randomEmpty());
-      obstacles.add(randomEmpty());
-      if (ThreadLocalRandom.current().nextDouble() < 0.2) turbo.add(randomEmpty());
-    }
+  public static Snake longestAlive(List<Snake> snakes) {
+    return snakes.stream()
+        .filter(Snake::isAlive)
+        .max((a, b) -> Integer.compare(a.length(), b.length()))
+        .orElse(null);
+  }
 
-    if (ateTurbo) return MoveResult.ATE_TURBO;
-    if (ateMouse) return MoveResult.ATE_MOUSE;
-    if (teleported) return MoveResult.TELEPORTED;
-    return MoveResult.MOVED;
+  public static Snake firstDead(List<Snake> snakes) {
+    return snakes.stream()
+        .filter(s -> !s.isAlive())
+        .min((a, b) -> Long.compare(a.getDeathTime(), b.getDeathTime()))
+        .orElse(null);
   }
 
   private void createTeleportPairs(int pairs) {

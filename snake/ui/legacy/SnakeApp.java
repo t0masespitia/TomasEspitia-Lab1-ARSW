@@ -3,6 +3,7 @@ package snake.ui.legacy;
 import snake.concurrency.SnakeRunner;
 import snake.core.Board;
 import snake.core.Direction;
+import snake.core.GameState;
 import snake.core.Position;
 import snake.core.Snake;
 import snake.core.engine.GameClock;
@@ -13,6 +14,7 @@ import java.awt.event.ActionEvent;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class SnakeApp extends JFrame {
 
@@ -21,6 +23,7 @@ public final class SnakeApp extends JFrame {
   private final JButton actionButton;
   private final GameClock clock;
   private final java.util.List<Snake> snakes = new java.util.ArrayList<>();
+  private final AtomicReference<GameState> gameState = new AtomicReference<>(GameState.RUNNING);
 
   public SnakeApp() {
     super("The Snake Race");
@@ -35,7 +38,7 @@ public final class SnakeApp extends JFrame {
     }
 
     this.gamePanel = new GamePanel(board, () -> snakes);
-    this.actionButton = new JButton("Action");
+    this.actionButton = new JButton("Pause");
 
     setLayout(new BorderLayout());
     add(gamePanel, BorderLayout.CENTER);
@@ -129,11 +132,41 @@ public final class SnakeApp extends JFrame {
   }
 
   private void togglePause() {
-    if ("Action".equals(actionButton.getText())) {
+    if (gameState.get() == GameState.RUNNING) {
+      gameState.set(GameState.PAUSED);
       actionButton.setText("Resume");
+      actionButton.setEnabled(false);
       clock.pause();
+      board.pauseGame();
+      new Thread(() -> {
+        board.waitUntilAllPaused();
+        SwingUtilities.invokeLater(() -> {
+          Snake longest = Board.longestAlive(snakes);
+          Snake firstDead = Board.firstDead(snakes);
+          StringBuilder sb = new StringBuilder();
+          sb.append("═══ PAUSA ═══\n");
+          if (longest != null) {
+            int idx = snakes.indexOf(longest);
+            sb.append("Serpiente viva más larga: #").append(idx)
+              .append("  (longitud ").append(longest.length()).append(")\n");
+          } else {
+            sb.append("No hay serpientes vivas.\n");
+          }
+          if (firstDead != null) {
+            int idx = snakes.indexOf(firstDead);
+            sb.append("Primera en morir (peor): #").append(idx).append("\n");
+          } else {
+            sb.append("Ninguna serpiente ha muerto aún.\n");
+          }
+          actionButton.setEnabled(true);
+          JOptionPane.showMessageDialog(SnakeApp.this, sb.toString(),
+              "Estadísticas", JOptionPane.INFORMATION_MESSAGE);
+        });
+      }).start();
     } else {
-      actionButton.setText("Action");
+      gameState.set(GameState.RUNNING);
+      actionButton.setText("Pause");
+      board.resumeGame();
       clock.resume();
     }
   }
@@ -167,7 +200,6 @@ public final class SnakeApp extends JFrame {
       for (int y = 0; y <= board.height(); y++)
         g2.drawLine(0, y * cell, board.width() * cell, y * cell);
 
-      // Obstáculos
       g2.setColor(new Color(255, 102, 0));
       for (var p : board.obstacles()) {
         int x = p.x() * cell, y = p.y() * cell;
@@ -179,7 +211,6 @@ public final class SnakeApp extends JFrame {
         g2.setColor(new Color(255, 102, 0));
       }
 
-      // Ratones
       g2.setColor(Color.BLACK);
       for (var p : board.mice()) {
         int x = p.x() * cell, y = p.y() * cell;
@@ -189,7 +220,6 @@ public final class SnakeApp extends JFrame {
         g2.setColor(Color.BLACK);
       }
 
-      // Teleports (flechas rojas)
       Map<Position, Position> tp = board.teleports();
       g2.setColor(Color.RED);
       for (var entry : tp.entrySet()) {
@@ -200,7 +230,6 @@ public final class SnakeApp extends JFrame {
         g2.fillPolygon(xs, ys, xs.length);
       }
 
-      // Turbo (rayos)
       g2.setColor(Color.BLACK);
       for (var p : board.turbo()) {
         int x = p.x() * cell, y = p.y() * cell;
@@ -209,20 +238,21 @@ public final class SnakeApp extends JFrame {
         g2.fillPolygon(xs, ys, xs.length);
       }
 
-      // Serpientes
       var snakes = snakesSupplier.get();
       int idx = 0;
       for (Snake s : snakes) {
-        var body = s.snapshot().toArray(new Position[0]);
-        for (int i = 0; i < body.length; i++) {
-          var p = body[i];
-          Color base = (idx == 0) ? new Color(0, 170, 0) : new Color(0, 160, 180);
-          int shade = Math.max(0, 40 - i * 4);
-          g2.setColor(new Color(
-              Math.min(255, base.getRed() + shade),
-              Math.min(255, base.getGreen() + shade),
-              Math.min(255, base.getBlue() + shade)));
-          g2.fillRect(p.x() * cell + 2, p.y() * cell + 2, cell - 4, cell - 4);
+        if (s.isAlive()) {
+          var body = s.snapshot().toArray(new Position[0]);
+          for (int i = 0; i < body.length; i++) {
+            var p = body[i];
+            Color base = (idx == 0) ? new Color(0, 170, 0) : new Color(0, 160, 180);
+            int shade = Math.max(0, 40 - i * 4);
+            g2.setColor(new Color(
+                Math.min(255, base.getRed() + shade),
+                Math.min(255, base.getGreen() + shade),
+                Math.min(255, base.getBlue() + shade)));
+            g2.fillRect(p.x() * cell + 2, p.y() * cell + 2, cell - 4, cell - 4);
+          }
         }
         idx++;
       }
